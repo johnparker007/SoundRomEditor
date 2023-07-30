@@ -8,15 +8,7 @@ namespace SoundRomEditor
 {
     public class Adpcm
     {
-        public struct adpcm_status
-        {
-            public short last;
-            public short step_index;
-        };
-
-        private adpcm_status _adpcmStatus = new adpcm_status();
-
-        private static short[] step_size = 
+        private static readonly short[] kStepSize = 
         { 
             16, 17, 19, 21, 23, 25, 28, 31, 34, 37, 41,
             45, 50, 55, 60, 66, 73, 80, 88, 97, 107, 118, 130, 143, 157, 173,
@@ -24,17 +16,16 @@ namespace SoundRomEditor
             724, 796, 876, 963, 1060, 1166, 1282, 1408, 1552 
         };
 
-        private byte[] _adpcmData = null;
+        private byte[] _data = null;
+        private short _index = 0;
+        private short _last = 0;
 
 
-        public Adpcm(byte[] adpcmData)
+        public Adpcm(byte[] data)
         {
-            _adpcmData = adpcmData;
+            _data = data;
 
             Initialise();
-
-            // test:
-
         }
 
 
@@ -50,8 +41,8 @@ namespace SoundRomEditor
 
         public void Initialise()
         {
-            _adpcmStatus.last = 0;
-            _adpcmStatus.step_index = 0;
+            _last = 0;
+            _index = 0;
         }
     //---------------------------------------------------------------------------
     /*
@@ -92,109 +83,121 @@ namespace SoundRomEditor
 //return (code);
 //}
 
-//---------------------------------------------------------------------------
-/*
-* Decode Linear to ADPCM
-*/
-//short __fastcall Sample::adpcm_decode( char code, struct adpcm_status *stat )
-//{
-//    short diff, E, SS, samp;
 
-//    SS = step_size[stat->step_index];
-//    E = SS / 8;
-//    if (code & 0x01)
-//        E += SS / 4;
-//    if (code & 0x02)
-//        E += SS / 2;
-//    if (code & 0x04)
-//        E += SS;
-//    diff = (code & 0x08) ? -E : E;
-//    samp = stat->last + diff;
-
-//    /*
-//    *  Clip the values to +/- 2^11 (supposed to be 12 bits)
-//    */
-//    if (samp > 2048) samp = 2048;
-//    if (samp < -2048) samp = -2048;
-
-//    stat->last = samp;
-//    stat->step_index += step_adjust(code);
-//    if (stat->step_index < 0) stat->step_index = 0;
-//    if (stat->step_index > 48) stat->step_index = 48;
-
-//    return (samp);
-//}
         public byte[] DecodeToWav()
         {
             List<byte> output = new List<byte>();
 
-            for (int adpcmReadIndex = 0; adpcmReadIndex < _adpcmData.Length; ++adpcmReadIndex)
+            for (int adpcmReadIndex = 0; adpcmReadIndex < _data.Length; ++adpcmReadIndex)
             {
+                byte sourceAdpcmByte = _data[adpcmReadIndex];
+                short decoded = Decode((byte)((sourceAdpcmByte >> 4) & 0xf));
+                output.Add((byte)(decoded & 0xff));
+                output.Add((byte)(decoded >> 8));
 
-                //            sound->Read( &value, 1);
-                //    sample = volume* adpcm_decode((value >> 4) & 0xF, &stat);
-                //            ptr->Write( &sample, 2);
-                //    sample = volume* adpcm_decode(value & 0xF, &stat);
-                //    ptr->Write( &sample, 2);
-                //    Size += 4;
-                byte sourceAdpcmByte = _adpcmData[adpcmReadIndex];
-                short decoded = (short)(1 * Decode((byte)((sourceAdpcmByte >> 4) & 0xF), _adpcmStatus));
-                output.Add((byte)((decoded >> 8) & 255));
-                output.Add((byte)((decoded >> 0) & 255));
-
-                decoded = (short)(1 * Decode((byte)(sourceAdpcmByte & 0xF), _adpcmStatus));
-                output.Add((byte)((decoded >> 8) & 255));
-                output.Add((byte)((decoded >> 0) & 255));
-
-
-
-
-
-
-                // JP Original:
-                //short decoded = Decode(_adpcmData[adpcmReadIndex], _adpcmStatus);
-
-                //output[(adpcmReadIndex * 2) + 0] = (byte)((decoded >> 8) & 255);
-                //output[(adpcmReadIndex * 2) + 1] = (byte)((decoded >> 0) & 255);
+                decoded = Decode((byte)(sourceAdpcmByte & 0xf));
+                output.Add((byte)(decoded & 0xff));
+                output.Add((byte)(decoded >> 8));
             }
 
             return output.ToArray();
         }
 
-        public static short Decode(byte code, adpcm_status stat)
+        public short Decode(byte code)
         {
-            short diff, E, SS, samp;
+            short diff, E, SS, sample;
 
-            SS = step_size[stat.step_index];
+            SS = kStepSize[_index];
             E = (short)(SS / 8);
-            if ((code & 0x01) != 0)
+            if ((code & 0x01) > 0)
             {
-                E += (short)(SS / 4);
+                E += (short)(SS >> 2);
             }
-            if ((code & 0x02) != 0)
+            if ((code & 0x02) > 0)
             {
-                E += (short)(SS / 2);
+                E += (short)(SS >> 1);
             }
-            if ((code & 0x04) != 0)
+            if ((code & 0x04) > 0)
             {
                 E += SS;
             }
-            diff = ((code & 0x08) != 0) ? (short)-E : E;
-            samp = (short)(stat.last + diff);
+            diff = ((code & 0x08) > 0) ? (short)-E : E;
+            sample = (short)(_last + diff);
 
             /*
             *  Clip the values to +/- 2^11 (supposed to be 12 bits)
             */
-            if (samp > 2048) samp = 2048;
-            if (samp < -2048) samp = -2048;
+            if (sample > 2047) sample = 2047;
+            if (sample < -2048) sample = -2048;
 
-            stat.last = samp;
-            stat.step_index += StepAdjust(code);
-            if (stat.step_index < 0) stat.step_index = 0;
-            if (stat.step_index > 48) stat.step_index = 48;
+            _last = sample;
+            _index += StepAdjust(code);
+            if (_index < 0) _index = 0;
+            if (_index > 48) _index = 48;
 
-            return samp;
+            return sample;
         }
+
+
+        //short OKIDecodeNibble(byte code, adpcm_status stat)
+        //{
+        //    short SS, Sample, Diff, E;
+
+
+        //    SS = step_size[stat.step_index];
+        //    E = (short)(SS / 8);
+
+        //    if ((Nibble & 0x01) > 0)
+        //    {
+        //        E += (short)(SS >> 2);
+        //    }
+        //    if ((Nibble & 0x02) > 0)
+        //    {
+        //        E += (short)(SS >> 1);
+        //    }
+        //    if ((Nibble & 0x04) > 0)
+        //    {
+        //        E += (short)SS;
+        //    }
+
+        //    if ((Nibble & 0x08) > 0)
+        //    {
+        //        Diff = (short)-E;
+        //    }
+        //    else
+        //    {
+        //        Diff = (short)E;
+        //    }
+
+        //    Sample = (short)(ADPCMLast + Diff);
+
+        //    if (Sample > 2047)
+        //    {
+        //        Sample = 2047;
+        //    }
+        //    if (Sample < -2048)
+        //    {
+        //        Sample = -2048;
+        //    }
+
+        //    ADPCMLast = Sample;
+        //    ADPCMIndex += OKIAdjusts[Nibble];
+
+        //    if (ADPCMIndex > 48)
+        //    {
+        //        ADPCMIndex = 48;
+        //    }
+        //    if (ADPCMIndex < 0)
+        //    {
+        //        ADPCMIndex = 0;
+        //    }
+
+        //    return (Sample);
+
+        //}
+
+
+
 
         //---------------------------------------------------------------------------
         /*

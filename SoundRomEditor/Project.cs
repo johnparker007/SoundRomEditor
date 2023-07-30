@@ -90,6 +90,9 @@ public List<byte> SourceRomsBytes
                 else
                 {
                     Console.WriteLine("Playing sample #" + sampleIndex);
+
+                    File.WriteAllBytes(@"sample" + sampleIndex + ".raw", Samples[sampleIndex].RawWavBytes);
+
                     Samples[sampleIndex].Play(false);
                 }
             }
