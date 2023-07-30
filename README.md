@@ -1,1 +1,3 @@
 # SoundRomEditor
+
+Plan is to support some/all of commonly used sound ROMs in fruit machines, quiz games etc... 
