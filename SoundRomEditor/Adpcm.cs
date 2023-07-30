@@ -126,20 +126,42 @@ namespace SoundRomEditor
 //}
         public byte[] DecodeToWav()
         {
-            byte[] output = new byte[_adpcmData.Length * 2];
+            List<byte> output = new List<byte>();
 
             for (int adpcmReadIndex = 0; adpcmReadIndex < _adpcmData.Length; ++adpcmReadIndex)
             {
-                short decoded = Decode(_adpcmData[adpcmReadIndex], _adpcmStatus);
 
-                output[(adpcmReadIndex * 2) + 0] = (byte)((decoded >> 8) & 255);
-                output[(adpcmReadIndex * 2) + 1] = (byte)((decoded >> 0) & 255);
+                //            sound->Read( &value, 1);
+                //    sample = volume* adpcm_decode((value >> 4) & 0xF, &stat);
+                //            ptr->Write( &sample, 2);
+                //    sample = volume* adpcm_decode(value & 0xF, &stat);
+                //    ptr->Write( &sample, 2);
+                //    Size += 4;
+                byte sourceAdpcmByte = _adpcmData[adpcmReadIndex];
+                short decoded = (short)(1 * Decode((byte)((sourceAdpcmByte >> 4) & 0xF), _adpcmStatus));
+                output.Add((byte)((decoded >> 8) & 255));
+                output.Add((byte)((decoded >> 0) & 255));
+
+                decoded = (short)(1 * Decode((byte)(sourceAdpcmByte & 0xF), _adpcmStatus));
+                output.Add((byte)((decoded >> 8) & 255));
+                output.Add((byte)((decoded >> 0) & 255));
+
+
+
+
+
+
+                // JP Original:
+                //short decoded = Decode(_adpcmData[adpcmReadIndex], _adpcmStatus);
+
+                //output[(adpcmReadIndex * 2) + 0] = (byte)((decoded >> 8) & 255);
+                //output[(adpcmReadIndex * 2) + 1] = (byte)((decoded >> 0) & 255);
             }
 
-            return output;
+            return output.ToArray();
         }
 
-        private short Decode(byte code, adpcm_status stat)
+        public static short Decode(byte code, adpcm_status stat)
         {
             short diff, E, SS, samp;
 
@@ -212,7 +234,7 @@ namespace SoundRomEditor
         //    return reply;
         //}
 
-        private short StepAdjust(byte code)
+        private static short StepAdjust(byte code)
         {
             short reply = 0;
 
