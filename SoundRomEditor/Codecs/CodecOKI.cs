@@ -8,10 +8,8 @@ namespace SoundRomEditor.Codecs
 {
     public class CodecOKI : Codec
     {
-        public const int kSampleCount = 120;
+        public const int kSampleCount = 120; // TODO banked roms for 240 sounds
         public const int kHeaderSampleInfoSize = 4;
-        public const int kDummySourceSampleLength = 2; // not sure what I'm doing with this just yet
-        public const int kTempSampleRate = 16000; // TODO TEMP!  Need to extract this from somewhere in the rom per sample...
 
         public override List<Sample> DecodeRoms(List<byte[]> soundRomsData)
         {
@@ -52,13 +50,15 @@ namespace SoundRomEditor.Codecs
             List<byte> sampleAdpcmData = GetSampleAdpcmData(mergedRomData, sampleAddress);
             Adpcm adpcm = new Adpcm(sampleAdpcmData.ToArray());
             byte[] linearPCM = adpcm.DecodeToLinearPCM(); // TODO should this author the wav header in here?
-            Sample sample = new Sample(linearPCM, kTempSampleRate);
+            int sampleRate = GetSampleRate(mergedRomData, headerAddress);
+            Sample sample = new Sample(linearPCM, sampleRate);
 
             Console.WriteLine("Sample# " + sampleIndex
                 + "   headerAddress: " + headerAddress
                 + "   sampleAddress: " + sampleAddress
                 + "   sampleAdpcmData length: " + sampleAdpcmData.Count
-                + "   => *2 : " + (sampleAdpcmData.Count * 2));
+                + "   => *2 : " + (sampleAdpcmData.Count * 2)
+                + "   sampleRate: " + sampleRate);
 
             return sample;
         }
@@ -70,6 +70,23 @@ namespace SoundRomEditor.Codecs
             address &= 0x1fffff;
 
             return address;
+        }
+
+        private int GetSampleRate(List<byte> mergedRomData, int headerAddress)
+        {
+            byte[] headerData = GetHeaderData(mergedRomData, headerAddress);
+            int rateKeyFromRomHeader = (16 - ((headerData[0] & 0xc0) >> 4)) * 1000;
+            // JP bit of a guess from the MSM6376 datasheet:
+            Dictionary<int, int> frequenciesLookup = new Dictionary<int, int>() 
+            { 
+                { 4000, 4000 },
+                { 6000, 6400 },
+                { 8000, 8000 },
+                { 12000, 12800 },
+                { 16000, 16000 }
+            };
+
+            return frequenciesLookup[rateKeyFromRomHeader];
         }
 
         private byte[] GetHeaderData(List<byte> mergedRomData, int headerAddress)
