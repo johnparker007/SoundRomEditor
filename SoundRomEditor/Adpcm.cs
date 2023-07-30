@@ -8,12 +8,16 @@ namespace SoundRomEditor
 {
     public class Adpcm
     {
+        public const int kVolume = 0xf;
+
         private static readonly short[] kStepSize = 
         { 
             16, 17, 19, 21, 23, 25, 28, 31, 34, 37, 41,
-            45, 50, 55, 60, 66, 73, 80, 88, 97, 107, 118, 130, 143, 157, 173,
-            190, 209, 230, 253, 279, 307, 337, 371, 408, 449, 494, 544, 598, 658,
-            724, 796, 876, 963, 1060, 1166, 1282, 1408, 1552 
+            45, 50, 55, 60, 66, 73, 80, 88, 97, 107, 118, 
+            130, 143, 157, 173, 190, 209, 230, 253, 279, 
+            307, 337, 371, 408, 449, 494, 544, 598, 658,
+            724, 796, 876, 963, 1060, 1166, 1282, 1408, 
+            1552 
         };
 
         private byte[] _data = null;
@@ -27,17 +31,6 @@ namespace SoundRomEditor
 
             Initialise();
         }
-
-
-        //---------------------------------------------------------------------------
-        /*
-        * Initialze the data used by the coder.
-        */
-        //        void __fastcall Sample::adpcm_init( struct adpcm_status *stat )
-        //{
-        //    stat->last = 0;
-        //    stat->step_index = 0;
-        //}
 
         public void Initialise()
         {
@@ -83,19 +76,19 @@ namespace SoundRomEditor
 //return (code);
 //}
 
-
-        public byte[] DecodeToWav()
+         
+        public byte[] DecodeToLinearPCM()
         {
             List<byte> output = new List<byte>();
 
             for (int adpcmReadIndex = 0; adpcmReadIndex < _data.Length; ++adpcmReadIndex)
             {
                 byte sourceAdpcmByte = _data[adpcmReadIndex];
-                short decoded = Decode((byte)((sourceAdpcmByte >> 4) & 0xf));
+                short decoded = (short)(kVolume * Decode((byte)((sourceAdpcmByte >> 4) & 0xf)));
                 output.Add((byte)(decoded & 0xff));
                 output.Add((byte)(decoded >> 8));
 
-                decoded = Decode((byte)(sourceAdpcmByte & 0xf));
+                decoded = (short)(kVolume * Decode((byte)(sourceAdpcmByte & 0xf)));
                 output.Add((byte)(decoded & 0xff));
                 output.Add((byte)(decoded >> 8));
             }
@@ -138,105 +131,6 @@ namespace SoundRomEditor
             return sample;
         }
 
-
-        //short OKIDecodeNibble(byte code, adpcm_status stat)
-        //{
-        //    short SS, Sample, Diff, E;
-
-
-        //    SS = step_size[stat.step_index];
-        //    E = (short)(SS / 8);
-
-        //    if ((Nibble & 0x01) > 0)
-        //    {
-        //        E += (short)(SS >> 2);
-        //    }
-        //    if ((Nibble & 0x02) > 0)
-        //    {
-        //        E += (short)(SS >> 1);
-        //    }
-        //    if ((Nibble & 0x04) > 0)
-        //    {
-        //        E += (short)SS;
-        //    }
-
-        //    if ((Nibble & 0x08) > 0)
-        //    {
-        //        Diff = (short)-E;
-        //    }
-        //    else
-        //    {
-        //        Diff = (short)E;
-        //    }
-
-        //    Sample = (short)(ADPCMLast + Diff);
-
-        //    if (Sample > 2047)
-        //    {
-        //        Sample = 2047;
-        //    }
-        //    if (Sample < -2048)
-        //    {
-        //        Sample = -2048;
-        //    }
-
-        //    ADPCMLast = Sample;
-        //    ADPCMIndex += OKIAdjusts[Nibble];
-
-        //    if (ADPCMIndex > 48)
-        //    {
-        //        ADPCMIndex = 48;
-        //    }
-        //    if (ADPCMIndex < 0)
-        //    {
-        //        ADPCMIndex = 0;
-        //    }
-
-        //    return (Sample);
-
-        //}
-
-
-
-
-        //---------------------------------------------------------------------------
-        /*
-        * adjust the step for use on the next sample.
-        */
-        //short __fastcall Sample::step_adjust ( char code )
-        //{
-        //    short reply;
-
-        //    switch (code & 0x07)
-        //    {
-        //        case 0x00:
-        //            reply = -1;
-        //            break;
-        //        case 0x01:
-        //            reply = -1;
-        //            break;
-        //        case 0x02:
-        //            reply = -1;
-        //            break;
-        //        case 0x03:
-        //            reply = -1;
-        //            break;
-        //        case 0x04:
-        //            reply = 2;
-        //            break;
-        //        case 0x05:
-        //            reply = 4;
-        //            break;
-        //        case 0x06:
-        //            reply = 6;
-        //            break;
-        //        case 0x07:
-        //            reply = 8;
-        //            break;
-        //    }
-        //    return reply;
-        //}
-
         private static short StepAdjust(byte code)
         {
             short reply = 0;
@@ -271,18 +165,6 @@ namespace SoundRomEditor
 
             return reply;
         }
-
-
-
-
-
-
-
-
-
-
-
-
 
     }
 }

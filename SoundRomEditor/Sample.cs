@@ -11,6 +11,8 @@ namespace SoundRomEditor
 {
     public class Sample
     {
+        public const int kBits = 16;
+        public const int kChannels = 1; // TODO stereo sample support
 
         public int Rate
         {
@@ -18,41 +20,50 @@ namespace SoundRomEditor
             private set;
         }
 
-        public byte[] RawWavBytes
+        public byte[] LinearPCM
         {
             get;
             private set;
         }
 
 
-        public Sample(byte[] rawWaveBytes, int rate)
+        public Sample(byte[] linearPCM, int rate)
         {
-            RawWavBytes = rawWaveBytes;
+            LinearPCM = linearPCM;
             Rate = rate;
         }
 
         public void Play(bool loop)
         {
-            // TODO this will want to be on a thread I think
-            //var ms = new MemoryStream(raw);
-            //var ms = new MemoryStream(SourceRomByteArrays[0]);
-            var ms = new MemoryStream(RawWavBytes);
-            var rs = new RawSourceWaveStream(ms, new WaveFormat(Rate, 16, 1));
+            // TODO this will want to be on a thread rather than blocking app until completed
 
-
-            var wo = new WaveOutEvent();
-            wo.Init(rs);
-            wo.Play();
-            while (wo.PlaybackState == PlaybackState.Playing)
+            WaveOutEvent waveOutEvent = new WaveOutEvent();
+            waveOutEvent.Init(GetRawSourceWaveStream());
+            waveOutEvent.Play();
+            while (waveOutEvent.PlaybackState == PlaybackState.Playing)
             {
-                Thread.Sleep(500);
+                Thread.Sleep(1);
             }
-            wo.Dispose();
+            waveOutEvent.Dispose();
         }
 
         public void Stop()
         {
 
+        }
+
+        public void SaveWav(string filename)
+        {
+            WaveFileWriter.CreateWaveFile(filename, GetRawSourceWaveStream());
+        }
+
+        private RawSourceWaveStream GetRawSourceWaveStream()
+        {
+            MemoryStream memoryStream = new MemoryStream(LinearPCM);
+            RawSourceWaveStream rawSourceWaveStream = 
+                new RawSourceWaveStream(memoryStream, new WaveFormat(Rate, kBits, kChannels));
+
+            return rawSourceWaveStream;
         }
     }
 }
