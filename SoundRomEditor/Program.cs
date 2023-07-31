@@ -16,9 +16,6 @@ namespace SoundRomEditor
         {
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
-
-            SoundRomEditor soundRomEditor = SoundRomEditor.Instance;
-
             Application.Run(new ViewMainForm());
         }
     }

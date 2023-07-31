@@ -43,15 +43,16 @@ namespace SoundRomEditor.Codecs
             int sampleAddress = GetSampleAddress(mergedRomData, headerAddress);
             if(sampleAddress == 0)
             {
+                Sample nullSample = new Sample(sampleIndex, null, 0);
                 Console.WriteLine("Sample# " + sampleIndex + "    null");
-                return null;
+                return nullSample;
             }
 
             List<byte> sampleAdpcmData = GetSampleAdpcmData(mergedRomData, sampleAddress);
             Adpcm adpcm = new Adpcm(sampleAdpcmData.ToArray());
             byte[] linearPCM = adpcm.DecodeToLinearPCM(); // TODO should this author the wav header in here?
             int sampleRate = GetSampleRate(mergedRomData, headerAddress);
-            Sample sample = new Sample(linearPCM, sampleRate);
+            Sample sample = new Sample(sampleIndex, linearPCM, sampleRate);
 
             Console.WriteLine("Sample# " + sampleIndex
                 + "   headerAddress: " + headerAddress

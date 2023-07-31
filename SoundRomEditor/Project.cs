@@ -13,11 +13,13 @@ namespace SoundRomEditor
     {
         public const string kTempMfmePlatformString = "MPU4";// TODO - TEMP!
 
+        public Action OnLoadRomsCompleted = null;
+
         public List<string> SourceRomPaths
         {
             get;
             private set;
-        }
+        } = new List<string>();
 
         public List<byte[]> SourceRomBytes
         {
@@ -33,17 +35,6 @@ namespace SoundRomEditor
 
         public Project()
         {
-            SourceRomPaths = new List<string>();
-
-            // test:
-            //SourceRomPaths.Add(@"C:\projects\Arcade_SourceLayouts\LegacySectionFromDif\Unzipped\Barcrest\Andy Capp (Barcrest)\andsnd.p1");
-            //SourceRomPaths.Add(@"C:\projects\Arcade_SourceLayouts\LegacySectionFromDif\Unzipped\Barcrest\Andy Capp (Barcrest)\andsnd.p2");
-
-            //SourceRomPaths.Add(@"C:\projects\Arcade_SourceLayouts\LegacySectionFromDif\Unzipped\JPM\Indiana Jones (JPM)\6706.bin");
-
-            // also test:
-            //LoadRoms();
-            //ExtractSamples();
         }
 
         public void LoadRoms()
@@ -55,6 +46,10 @@ namespace SoundRomEditor
             {
                 SourceRomBytes.Add(File.ReadAllBytes(sourceRomPath));
             }
+
+            ExtractSamples();
+
+            OnLoadRomsCompleted?.Invoke();
         }
 
         public void LoadRomsFromSelector()
@@ -72,7 +67,6 @@ namespace SoundRomEditor
                 SourceRomPaths.AddRange(openFileDialog.FileNames);
 
                 LoadRoms();
-                ExtractSamples();
             }
         }
 
