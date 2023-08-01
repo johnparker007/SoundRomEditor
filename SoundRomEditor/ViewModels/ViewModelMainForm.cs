@@ -8,6 +8,21 @@ namespace SoundRomEditor.ViewModels
 {
     public class ViewModelMainForm
     {
+        private ViewMainForm _viewMainForm = null;
+
+        public Sample SelectedSample
+        {
+            get
+            {
+                return _viewMainForm.SelectedSample;
+            }
+        }
+
+        public void SetViewMainForm(ViewMainForm viewMainForm)
+        {
+            _viewMainForm = viewMainForm;
+        }
+
         public void PlayAllSamples()
         {
             SoundRomEditor.Instance.Project.PlayAllSamples();
@@ -21,6 +36,16 @@ namespace SoundRomEditor.ViewModels
         public void LoadRoms()
         {
             SoundRomEditor.Instance.Project.LoadRomsFromSelector();
+        }
+
+        public void SaveRoms()
+        {
+            Console.WriteLine("TODO save roms");
+        }
+
+        public void LoadWav()
+        {
+            SoundRomEditor.Instance.Project.LoadWavFromSelector();
         }
     }
 }

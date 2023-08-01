@@ -15,12 +15,6 @@ namespace SoundRomEditor
 
         public Action OnLoadRomsCompleted = null;
 
-        public List<string> SourceRomPaths
-        {
-            get;
-            private set;
-        } = new List<string>();
-
         public List<byte[]> SourceRomBytes
         {
             get;
@@ -37,21 +31,6 @@ namespace SoundRomEditor
         {
         }
 
-        public void LoadRoms()
-        {
-            // TODO check mfme source, I think it sorts the sound roms by filename before loading
-
-            SourceRomBytes = new List<byte[]>();
-            foreach (string sourceRomPath in SourceRomPaths)
-            {
-                SourceRomBytes.Add(File.ReadAllBytes(sourceRomPath));
-            }
-
-            ExtractSamples();
-
-            OnLoadRomsCompleted?.Invoke();
-        }
-
         public void LoadRomsFromSelector()
         {
             OpenFileDialog openFileDialog = new OpenFileDialog
@@ -63,10 +42,22 @@ namespace SoundRomEditor
 
             if (openFileDialog.ShowDialog() == DialogResult.OK)
             {
-                SourceRomPaths.Clear();
-                SourceRomPaths.AddRange(openFileDialog.FileNames);
+                LoadRoms(openFileDialog.FileNames);
+            }
+        }
 
-                LoadRoms();
+        public void LoadWavFromSelector()
+        {
+            OpenFileDialog openFileDialog = new OpenFileDialog
+            {
+                Title = "Open WAV",
+                Filter = "Wav files (*.wav)|*.wav",
+                Multiselect = false
+            };
+
+            if (openFileDialog.ShowDialog() == DialogResult.OK)
+            {
+                LoadWav(openFileDialog.FileName);
             }
         }
 
@@ -105,7 +96,7 @@ namespace SoundRomEditor
             }
         }
 
-        public void SaveWav(int sampleIndex)
+        private void SaveWav(int sampleIndex)
         {
             Sample sample = Samples[sampleIndex];
             if (sample == null)
@@ -124,5 +115,68 @@ namespace SoundRomEditor
             Codec codec = CodecHelpers.CreateCodec(kTempMfmePlatformString);
             Samples = codec.DecodeRoms(SourceRomBytes);
         }
+
+        private void LoadRoms(string[] sourceRomPaths)
+        {
+            SourceRomBytes = new List<byte[]>();
+            foreach (string sourceRomPath in sourceRomPaths)
+            {
+                SourceRomBytes.Add(File.ReadAllBytes(sourceRomPath));
+            }
+
+            ExtractSamples();
+
+            OnLoadRomsCompleted?.Invoke();
+        }
+
+        private void LoadWav(string wavPath)
+        {
+            byte[] sourceWavBytes = File.ReadAllBytes(wavPath);
+            // TOIMPROVE don't convert if wav just happens to be mono/sterio we nbeed and bitrate we need
+            byte[] convertedLinearPCM = ConvertWavTo16000Hz16BitMonoWav(sourceWavBytes, false);
+
+            SoundRomEditor.Instance.ViewModelMainForm.SelectedSample.SetOverrideLinearPCM(
+                convertedLinearPCM, 16000); // TODO magic number
+        }
+
+        public static byte[] ConvertWavTo16000Hz16BitMonoWav(byte[] inArray, bool writeHeader)
+        {
+            using (var mem = new MemoryStream(inArray))
+            {
+                using (var reader = new WaveFileReader(mem))
+                {
+                    using (var converter = WaveFormatConversionStream.CreatePcmStream(reader))
+                    {
+                        using (var upsampler = new WaveFormatConversionStream(new WaveFormat(16000, 16, 1), converter))
+                        {
+                            byte[] data;
+                            using (var m = new MemoryStream())
+                            {
+                                upsampler.CopyTo(m);
+                                data = m.ToArray();
+                            }
+
+                            if(writeHeader)
+                            {
+                                using (var m = new MemoryStream())
+                                {
+                                    // to create a propper WAV header (44 bytes), which begins with RIFF 
+                                    var w = new WaveFileWriter(m, upsampler.WaveFormat);
+                                    // append WAV data body
+                                    w.Write(data, 0, data.Length);
+                                    return m.ToArray();
+                                }
+                            }
+                            else
+                            {
+                                return data;
+                            }
+
+                        }
+                    }
+                }
+            }
+        }
+
     }
 }

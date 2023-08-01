@@ -11,8 +11,78 @@ namespace SoundRomEditor
 {
     public class Sample
     {
+        public class SampleData
+        {
+            public SampleData(byte[] originalData, byte[] linearPCM, int rate)
+            {
+                Rate = rate;
+                OriginalData = originalData;
+                LinearPCM = linearPCM;
+            }
+
+            public byte[] OriginalData
+            {
+                get;
+                private set;
+            }
+
+            public byte[] LinearPCM
+            {
+                get;
+                private set;
+            }
+
+            public int Rate
+            {
+                get;
+                private set;
+            }
+
+            public int SampleCount
+            {
+                get
+                {
+                    // TODO this is where I'll need something like Sample base class
+                    // with subclasses like SampleADPCM, SampleNEC, SampleYMZ etc and
+                    // reference that source data rather than the Windows-native linear PCM 
+
+                    // for now just hardcode the "/2" which gives us the adpcm byte sample count
+                    if (LinearPCM == null)
+                    {
+                        return 0;
+                    }
+                    return LinearPCM.Length / 2;
+                }
+            }
+
+            public float Duration
+            {
+                get
+                {
+                    if (Rate == 0)
+                    {
+                        return 0;
+                    }
+
+                    return (float)SampleCount / Rate;
+                }
+            }
+        }
+
         public const int kBits = 16;
         public const int kChannels = 1; // TODO stereo sample support
+
+        public SampleData OriginalSampleData
+        {
+            get;
+            private set;
+        }
+
+        public SampleData OverrideSampleData
+        {
+            get;
+            private set;
+        }
 
         public int Index
         {
@@ -24,51 +94,57 @@ namespace SoundRomEditor
         {
             get
             {
-                // TODO this is where I'll need something like Sample base class
-                // with subclasses like SampleADPCM, SampleNEC, SampleYMZ etc and
-                // reference that source data rather than the Windows-native linear PCM 
-
-                // for now just hardcode the "/2" which gives us the adpcm byte sample count
-                if(LinearPCM == null)
-                {
-                    return 0;
-                }
-                return LinearPCM.Length / 2; 
+                return OriginalSampleData.SampleCount;
             }
         }
 
         public int Rate
         {
-            get;
-            private set;
+            get
+            {
+                return OriginalSampleData.Rate;
+            }
         }
 
         public float Duration
         {
             get
             {
-                if (Rate == 0)
-                {
-                    return 0;
-                }
-
-                return (float)SampleCount / Rate;
+                return OriginalSampleData.Duration;
             }
         }
-
-        protected byte[] LinearPCM
+ 
+        public bool Override
         {
             get;
             private set;
         }
 
+        protected SampleData ActiveSampleData
+        {
+            get
+            {
+                if (Override && OverrideSampleData != null)
+                {
+                    return OverrideSampleData;
+                }
+                else
+                {
+                    return OriginalSampleData;
+                }
+            }
+        }
 
 
-        public Sample(int index, byte[] linearPCM, int rate)
+        public Sample(int index, byte[] originalData, byte[] linearPCM, int rate)
         {
             Index = index;
-            LinearPCM = linearPCM;
-            Rate = rate;
+            OriginalSampleData = new SampleData(originalData, linearPCM, rate);
+        }
+
+        public void SetOverrideLinearPCM(byte[] linearPCM, int rate)
+        {
+            OverrideSampleData = new SampleData(null, linearPCM, rate);
         }
 
         public void Play(bool loop)
@@ -76,7 +152,7 @@ namespace SoundRomEditor
             // TODO this will want to be on a thread rather than blocking app until completed
 
             WaveOutEvent waveOutEvent = new WaveOutEvent();
-            waveOutEvent.Init(GetRawSourceWaveStream());
+            waveOutEvent.Init(GetRawSourceWaveStream(ActiveSampleData));
             waveOutEvent.Play();
             while (waveOutEvent.PlaybackState == PlaybackState.Playing)
             {
@@ -92,14 +168,19 @@ namespace SoundRomEditor
 
         public void SaveWav(string filename)
         {
-            WaveFileWriter.CreateWaveFile(filename, GetRawSourceWaveStream());
+            WaveFileWriter.CreateWaveFile(filename, GetRawSourceWaveStream(ActiveSampleData));
         }
 
-        private RawSourceWaveStream GetRawSourceWaveStream()
+        public void ToggleOverride()
         {
-            MemoryStream memoryStream = new MemoryStream(LinearPCM);
+            Override = !Override;
+        }
+
+        private RawSourceWaveStream GetRawSourceWaveStream(SampleData sampleData)
+        {
+            MemoryStream memoryStream = new MemoryStream(sampleData.LinearPCM);
             RawSourceWaveStream rawSourceWaveStream = 
-                new RawSourceWaveStream(memoryStream, new WaveFormat(Rate, kBits, kChannels));
+                new RawSourceWaveStream(memoryStream, new WaveFormat(sampleData.Rate, kBits, kChannels));
 
             return rawSourceWaveStream;
         }
