@@ -15,6 +15,12 @@ namespace SoundRomEditor
 
         public Action OnLoadRomsCompleted = null;
 
+        public List<string> SourceRomPaths
+        {
+            get;
+            private set;
+        }
+
         public List<byte[]> SourceRomBytes
         {
             get;
@@ -43,6 +49,16 @@ namespace SoundRomEditor
             if (openFileDialog.ShowDialog() == DialogResult.OK)
             {
                 LoadRoms(openFileDialog.FileNames);
+            }
+        }
+
+        public void SaveRoms(string baseFilename)
+        {
+            Codec codec = CodecHelpers.CreateCodec(kTempMfmePlatformString);
+            List<byte[]> roms = codec.EncodeRoms(Samples);
+            for (int romIndex = 0; romIndex < roms.Count; ++romIndex)
+            {
+                File.WriteAllBytes(baseFilename + romIndex, roms[romIndex]);
             }
         }
 
@@ -118,6 +134,9 @@ namespace SoundRomEditor
 
         private void LoadRoms(string[] sourceRomPaths)
         {
+            SourceRomPaths = new List<string>();
+            SourceRomPaths.AddRange(sourceRomPaths);
+
             SourceRomBytes = new List<byte[]>();
             foreach (string sourceRomPath in sourceRomPaths)
             {
@@ -139,6 +158,7 @@ namespace SoundRomEditor
                 convertedLinearPCM, 16000); // TODO magic number
         }
 
+        // TODO fixed, needs to be codec-specific, with potential user override for Hz
         public static byte[] ConvertWavTo16000Hz16BitMonoWav(byte[] inArray, bool writeHeader)
         {
             using (var mem = new MemoryStream(inArray))

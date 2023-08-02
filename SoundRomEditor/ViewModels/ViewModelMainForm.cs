@@ -40,7 +40,7 @@ namespace SoundRomEditor.ViewModels
 
         public void SaveRoms()
         {
-            Console.WriteLine("TODO save roms");
+            SoundRomEditor.Instance.Project.SaveRoms("SRE_SOUND_ROM");
         }
 
         public void LoadWav()
