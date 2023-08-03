@@ -8,6 +8,12 @@ namespace SoundRomEditor
 {
     public class Adpcm
     {
+        public enum InputDataFormat
+        {
+            Adpcm,
+            LinearPcm
+        }
+
         public const int kVolume = 0xf;
 
         private static readonly short[] kStepSize = 
@@ -25,58 +31,187 @@ namespace SoundRomEditor
         private short _last = 0;
 
 
-        public Adpcm(byte[] data)
+        public Adpcm(byte[] data, InputDataFormat inputDataFormat)
         {
-            _data = data;
+            switch(inputDataFormat)
+            {
+                case InputDataFormat.Adpcm:
+                    _data = data;
+                    break;
+                case InputDataFormat.LinearPcm:
+                    break;
+                default:
+                    Console.WriteLine("Input data format not set up: " + inputDataFormat);
+                    break;
+            }
+        }
+        //---------------------------------------------------------------------------
+        /*
+        * Encode linear to ADPCM
+        */
+        //    char __fastcall Sample::adpcm_encode(short samp, struct adpcm_status * stat )
+        //{
+        //    short code;
+        //    short diff, E, SS;
 
-            Initialise();
+        //    SS = step_size[stat->step_index];
+        //    code = 0x00;
+        //    if((diff = samp - stat->last) < 0 )
+        //        code = 0x08;
+        //    E = diff< 0 ? -diff : diff;
+        //    if(E >= SS ) {
+        //        code = code | 0x04;
+        //        E -= SS;
+        //    }
+        //if (E >= SS / 2)
+        //{
+        //    code = code | 0x02;
+        //    E -= SS / 2;
+        //}
+        //if (E >= SS / 4)
+        //{
+        //    code = code | 0x01;
+        //}
+        ///*    stat->step_index += step_adjust( code );
+        //    if( stat->step_index < 0 ) stat->step_index = 0;
+        //    if( stat->step_index > 48 ) stat->step_index = 48;
+        //*/
+        ///*
+        //* Use the decoder to set the estimate of last sample.
+        //* It also will adjust the step_index for us.
+        //*/
+        //stat->last = adpcm_decode(code, stat);
+        //return (code);
+        //}
+
+        public byte[] EncodeFromLinearPCM(byte[] linearPcm)
+        {
+            List<byte> output = new List<byte>();
+
+            const int kLinearPcmBytesPerAdpcmByte = 4;
+            for (int linearPcmReadIndex = 0; 
+                linearPcmReadIndex < linearPcm.Length; 
+                linearPcmReadIndex += kLinearPcmBytesPerAdpcmByte)
+            {
+                const int kZeroDCBiasSampleValue = 0x80; // TODO check this is true for linear pcm
+                byte linearPcmByte0 = kZeroDCBiasSampleValue;
+                byte linearPcmByte1 = kZeroDCBiasSampleValue;
+                byte linearPcmByte2 = kZeroDCBiasSampleValue;
+                byte linearPcmByte3 = kZeroDCBiasSampleValue;
+
+                linearPcmByte3 = linearPcm[linearPcmReadIndex];
+                if(linearPcmReadIndex + 1 < linearPcm.Length)
+                {
+                    linearPcmByte2 = linearPcm[linearPcmReadIndex + 1];
+                }
+                if (linearPcmReadIndex + 2 < linearPcm.Length)
+                {
+                    linearPcmByte1 = linearPcm[linearPcmReadIndex + 2];
+                }
+                if (linearPcmReadIndex + 3 < linearPcm.Length)
+                {
+                    linearPcmByte0 = linearPcm[linearPcmReadIndex + 3];
+                }
+
+                short sample0 = (short)((linearPcmByte0 << 8) | linearPcmByte1);
+                short sample1 = (short)((linearPcmByte2 << 8) | linearPcmByte3);
+
+                // JP swapping linearPcmByte1 << 8) | linearPcmByte0 gives just noise
+                //short sample0 = (short)((linearPcmByte1 << 8) | linearPcmByte0);
+                //short sample1 = (short)((linearPcmByte3 << 8) | linearPcmByte2);
+
+                // JP guess:
+                sample0 /= (kVolume);
+                sample1 /= (kVolume);
+
+                byte adpcmNibble0 = (byte)((Encode(sample0) & 0xf) << 4);
+                byte adpcmNibble1 = (byte)(Encode(sample1) & 0xf);
+
+                byte adpcmByte = (byte)(adpcmNibble0 | adpcmNibble1);
+
+                output.Add(adpcmByte);
+            }
+
+            return output.ToArray();
         }
 
-        public void Initialise()
+        public byte Encode(short sample)
         {
-            _last = 0;
-            _index = 0;
+            short diff, E, SS;
+            byte code;
+
+            diff = (short)(sample - _last);
+
+            SS = kStepSize[_index];
+
+            E = (short)(Math.Abs((int)diff) * 8 / SS);
+
+            code = 0;
+            if (E >= 4)
+            {
+                code |= 0x04;
+                E -= 4;
+            }
+            if (E >= 2)
+            {
+                code |= 0x02;
+                E -= 2;
+            }
+            if (E >= 1)
+            {
+                code |= 0x01;
+            }
+            if (diff < 0)
+            {
+                code |= 0x08;
+            }
+
+            _last = sample;
+            _index += StepAdjust(code);
+            if (_index < 0) _index = 0;
+            if (_index > 48) _index = 48;
+
+            return code;
+
+
+
+            //byte code;
+            //short diff, E, SS;
+
+            //SS = kStepSize[_index];
+            //code = 0x00;
+            //if ((diff = (short)(sample - _last)) < 0)
+            //{
+            //    code = 0x08;
+            //}
+            //E = diff < 0 ? (short)-diff : diff;
+            //if (E >= SS)
+            //{
+            //    code = (byte)(code | 0x04);
+            //    E -= SS;
+            //}
+            //if (E >= SS / 2)
+            //{
+            //    code = (byte)(code | 0x02);
+            //    E -= (short)(SS / 2);
+            //}
+            //if (E >= SS / 4)
+            //{
+            //    code = (byte)(code | 0x01);
+            //}
+            ///*    stat->step_index += step_adjust( code );
+            //    if( stat->step_index < 0 ) stat->step_index = 0;
+            //    if( stat->step_index > 48 ) stat->step_index = 48;
+            //*/
+            ///*
+            //* Use the decoder to set the estimate of last sample.
+            //* It also will adjust the step_index for us.
+            //*/
+            //_last = Decode(code);
+            //return code;
+
         }
-    //---------------------------------------------------------------------------
-    /*
-    * Encode linear to ADPCM
-    */
-//    char __fastcall Sample::adpcm_encode(short samp, struct adpcm_status * stat )
-//{
-//    short code;
-//    short diff, E, SS;
 
-//    SS = step_size[stat->step_index];
-//    code = 0x00;
-//    if((diff = samp - stat->last) < 0 )
-//        code = 0x08;
-//    E = diff< 0 ? -diff : diff;
-//    if(E >= SS ) {
-//        code = code | 0x04;
-//        E -= SS;
-//    }
-//if (E >= SS / 2)
-//{
-//    code = code | 0x02;
-//    E -= SS / 2;
-//}
-//if (E >= SS / 4)
-//{
-//    code = code | 0x01;
-//}
-///*    stat->step_index += step_adjust( code );
-//    if( stat->step_index < 0 ) stat->step_index = 0;
-//    if( stat->step_index > 48 ) stat->step_index = 48;
-//*/
-///*
-//* Use the decoder to set the estimate of last sample.
-//* It also will adjust the step_index for us.
-//*/
-//stat->last = adpcm_decode(code, stat);
-//return (code);
-//}
-
-         
         public byte[] DecodeToLinearPCM()
         {
             List<byte> output = new List<byte>();

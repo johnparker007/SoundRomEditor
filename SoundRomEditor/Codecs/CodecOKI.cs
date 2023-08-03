@@ -20,13 +20,6 @@ namespace SoundRomEditor.Codecs
 
         public override List<byte[]> EncodeRoms(List<Sample> samples)
         {
-            // TODO later - need to ultimately build any overrides into the native ADPCM format
-
-            // then build the native ADPCM data as they'll appear in the ROM, so:
-            // length byte, data bytes, length bytes, data bytes etc...
-            // then these can be used to calcuate the lengths, and so addresses
-            // for building the header, and appending the sample data
-
             // build rom samples data
             List<List<byte>> romSamplesData = new List<List<byte>>();
             for (int sampleIndex = 0; sampleIndex < kSampleCount; ++sampleIndex)
@@ -35,8 +28,20 @@ namespace SoundRomEditor.Codecs
                 Sample sample = samples[sampleIndex];
                 if(sample != null && sample.OriginalSampleData.OriginalData != null)
                 {
-                    romSampleData = EncodeAdpcmDataToRomData(
-                        samples[sampleIndex].OriginalSampleData.OriginalData.ToList());
+                    List<byte> adpcmData;
+                    if(sample.Override && sample.OverrideSampleData != null)
+                    {
+                        // TOIMPROVE - most/all of this Adpcm class should prob just be static?
+                        Adpcm adpcm = new Adpcm(null, Adpcm.InputDataFormat.LinearPcm);
+
+                        adpcmData = adpcm.EncodeFromLinearPCM(sample.OverrideSampleData.LinearPCM).ToList();
+                    }
+                    else
+                    {
+                        adpcmData = samples[sampleIndex].OriginalSampleData.OriginalData.ToList();
+                    }
+
+                    romSampleData = EncodeAdpcmDataToRomData(adpcmData);
                 }
 
                 romSamplesData.Add(romSampleData);
@@ -115,7 +120,7 @@ namespace SoundRomEditor.Codecs
             }
 
             List<byte> sampleAdpcmData = DecodeAdpcmDataFromRomData(mergedRomData, sampleAddress);
-            Adpcm adpcm = new Adpcm(sampleAdpcmData.ToArray());
+            Adpcm adpcm = new Adpcm(sampleAdpcmData.ToArray(), Adpcm.InputDataFormat.Adpcm);
             byte[] linearPCM = adpcm.DecodeToLinearPCM();
             int sampleRate = GetSampleRate(mergedRomData, headerAddress);
             Sample sample = new Sample(sampleIndex, sampleAdpcmData.ToArray(), linearPCM, sampleRate);
@@ -225,7 +230,7 @@ namespace SoundRomEditor.Codecs
                 { 16000, 16000 }
             };
 
-            int rateKey = rateKeyLookup[sample.Rate];
+            int rateKey = rateKeyLookup[sample.Rate]; // TODO this will be potentially different for overrides!
 
             // set address into header bytes
             headerData[0] = (byte)((sampleDataAddress >> 16) & 0xff);
